@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0f14">
+  <title>Scooter GPS</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#141a22; --card2:#0f141b; --text:#f5f7fa; --muted:#95a0ad;
+      --accent:#55e27a; --warn:#ffd166; --danger:#ff5f69; --line:#25303c;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text); background:linear-gradient(180deg,#0b0f14,#0d131a 45%,#090c10);
+      min-height:100vh;
+    }
+    .wrap{max-width:760px;margin:0 auto;padding:16px 14px 40px}
+    h1{font-size:22px;margin:4px 0 14px}
+    .card{
+      background:rgba(20,26,34,.96); border:1px solid var(--line); border-radius:20px;
+      padding:16px; margin:12px 0; box-shadow:0 10px 30px rgba(0,0,0,.22);
+    }
+    .speedbox{text-align:center;padding:24px 12px 18px}
+    .speed{font-size:78px;line-height:.9;font-weight:800;letter-spacing:-4px}
+    .unit{font-size:16px;color:var(--muted);margin-top:8px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .stat{background:var(--card2);border:1px solid var(--line);border-radius:16px;padding:13px}
+    .label{font-size:12px;color:var(--muted);margin-bottom:4px}
+    .value{font-size:24px;font-weight:750}
+    .small{font-size:13px;color:var(--muted)}
+    .battery{height:18px;background:#242d37;border-radius:999px;overflow:hidden;margin-top:10px}
+    .battery > div{height:100%;width:0;background:var(--accent);transition:width .35s}
+    button{
+      width:100%;border:0;border-radius:16px;padding:15px 18px;font-size:17px;font-weight:750;
+      background:var(--accent);color:#06120a;margin-top:10px;
+    }
+    button.secondary{background:#222b35;color:var(--text);border:1px solid var(--line)}
+    button.danger{background:#3a171b;color:#ffb7bd;border:1px solid #68272e}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    details summary{cursor:pointer;font-weight:750;font-size:16px}
+    .form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .field label{display:block;font-size:12px;color:var(--muted);margin:0 0 5px 2px}
+    input{
+      width:100%;background:#0e1319;color:var(--text);border:1px solid var(--line);
+      border-radius:12px;padding:12px;font-size:16px;outline:none;
+    }
+    .status{font-size:13px;color:var(--muted);margin-top:10px;line-height:1.4}
+    .ok{color:var(--accent)} .bad{color:var(--danger)} .warn{color:var(--warn)}
+    .footer{font-size:12px;color:#6f7a86;line-height:1.45;margin-top:16px}
+    @media (max-width:420px){ .speed{font-size:68px}.form{grid-template-columns:1fr 1fr}.value{font-size:22px} }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛴 Scooter GPS</h1>
+
+  <div class="card speedbox">
+    <div class="speed" id="speed">0</div>
+    <div class="unit">км/ч</div>
+    <div class="status" id="gpsStatus">GPS ещё не запущен</div>
+  </div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="stat"><div class="label">Проехал</div><div class="value"><span id="distance">0.00</span> км</div></div>
+      <div class="stat"><div class="label">Средняя скорость</div><div class="value"><span id="avgSpeed">0.0</span> км/ч</div></div>
+      <div class="stat"><div class="label">Уклон</div><div class="value"><span id="slope">0.0</span>%</div></div>
+      <div class="stat"><div class="label">Расход сейчас</div><div class="value"><span id="whkm">0.0</span> Wh/км</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Оценка заряда</div>
+    <div class="value"><span id="batteryPct">—</span>%</div>
+    <div class="battery"><div id="batteryBar"></div></div>
+    <div class="grid" style="margin-top:10px">
+      <div class="stat"><div class="label">Осталось примерно</div><div class="value"><span id="range">—</span> км</div></div>
+      <div class="stat"><div class="label">Потрачено</div><div class="value"><span id="usedWh">0</span> Wh</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <button id="startBtn">▶ Старт поездки</button>
+    <div class="row">
+      <button class="secondary" id="pauseBtn">⏸ Пауза</button>
+      <button class="danger" id="resetBtn">↺ Сбросить поездку</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <details open>
+      <summary>⚙ Параметры самоката</summary>
+      <div class="form">
+        <div class="field"><label>Номинал батареи, В</label><input id="nomV" type="number" step="0.1" value="48"></div>
+        <div class="field"><label>Ёмкость, А·ч</label><input id="ah" type="number" step="0.1" value="11"></div>
+        <div class="field"><label>Текущее напряжение, В</label><input id="currentV" type="number" step="0.1" value="49.2"></div>
+        <div class="field"><label>Мотор, Вт</label><input id="motorW" type="number" step="50" value="600"></div>
+        <div class="field"><label>Ваш вес, кг</label><input id="riderKg" type="number" step="1" value="47"></div>
+        <div class="field"><label>Вес самоката, кг</label><input id="scooterKg" type="number" step="1" value="30"></div>
+        <div class="field"><label>Реальный запас на 3-й, км</label><input id="rangeFast" type="number" step="1" value="21"></div>
+        <div class="field"><label>Реальный запас на 1-й, км</label><input id="rangeEco" type="number" step="1" value="30"></div>
+      </div>
+      <button class="secondary" id="saveBtn">💾 Сохранить параметры и пересчитать стартовый заряд</button>
+      <div class="status">
+        Для 48-вольтовой литий-ионной батареи приложение оценивает стартовый процент по напряжению.
+        Под нагрузкой напряжение проседает, поэтому процент приблизительный. После старта расход уточняется по GPS, скорости и подъёмам.
+      </div>
+    </details>
+  </div>
+
+  <div class="footer">
+    GPS и высота телефона не дают лабораторную точность. Особенно шумно считается уклон, поэтому он сглаживается.
+    Для работы геолокации на телефоне лучше открывать сайт через HTTPS; некоторые браузеры блокируют GPS для обычного локального HTML-файла.
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const defaults = {
+    nomV:48, ah:11, currentV:49.2, motorW:600, riderKg:47, scooterKg:30,
+    rangeFast:21, rangeEco:30
+  };
+
+  let settings = {...defaults};
+  let watchId = null;
+  let running = false;
+  let paused = false;
+  let lastPos = null;
+  let distanceM = 0;
+  let movingSeconds = 0;
+  let usedWh = 0;
+  let startEnergyWh = 0;
+  let startPct = 100;
+  let lastTs = null;
+  let smoothSlope = 0;
+  let recentWhKm = [];
+  let recentSpeeds = [];
+
+  function loadSettings(){
+    try{
+      const s = JSON.parse(localStorage.getItem('scooterGpsSettings') || '{}');
+      settings = {...defaults, ...s};
+    }catch(e){ settings = {...defaults}; }
+    Object.keys(defaults).forEach(k => { if($(k)) $(k).value = settings[k]; });
+  }
+
+  function readSettings(){
+    Object.keys(defaults).forEach(k => settings[k] = Number($(k).value) || defaults[k]);
+    localStorage.setItem('scooterGpsSettings', JSON.stringify(settings));
+  }
+
+  // Approximate resting-voltage SOC curve for a common 13S (48 V nominal) Li-ion pack.
+  function socFromVoltage(packV, nominalV){
+    const cells = Math.round(nominalV / 3.7); // 48 V -> 13S
+    const v = packV / cells;
+    const curve = [
+      [3.00,0],[3.45,10],[3.60,20],[3.68,30],[3.73,40],[3.79,50],
+      [3.85,60],[3.92,70],[4.00,80],[4.10,90],[4.20,100]
+    ];
+    if(v <= curve[0][0]) return 0;
+    if(v >= curve[curve.length-1][0]) return 100;
+    for(let i=1;i<curve.length;i++){
+      if(v <= curve[i][0]){
+        const [v0,p0]=curve[i-1], [v1,p1]=curve[i];
+        return p0 + (v-v0)/(v1-v0)*(p1-p0);
+      }
+    }
+    return 100;
+  }
+
+  function recalcStartEnergy(){
+    readSettings();
+    startPct = socFromVoltage(settings.currentV, settings.nomV);
+    const fullWh = settings.nomV * settings.ah;
+    startEnergyWh = fullWh * startPct / 100;
+    render();
+  }
+
+  function haversine(a,b){
+    const R=6371000, toRad=x=>x*Math.PI/180;
+    const dLat=toRad(b.latitude-a.latitude), dLon=toRad(b.longitude-a.longitude);
+    const la1=toRad(a.latitude), la2=toRad(b.latitude);
+    const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+
+  function calibratedFlatWhKm(speedKmh){
+    // Calibrated to user's real-world ranges:
+    // about 30 km in eco and 21 km in fast mode on a full 48V 11Ah pack.
+    const fullWh = settings.nomV * settings.ah;
+    const eco = fullWh / Math.max(1, settings.rangeEco);
+    const fast = fullWh / Math.max(1, settings.rangeFast);
+    // interpolate around 20 km/h (eco) to 38 km/h (fast), then grow gently.
+    const t = Math.max(0, Math.min(1, (speedKmh - 20) / 18));
+    let base = eco + (fast - eco) * (t*t*(3-2*t));
+    if(speedKmh > 38) base *= 1 + (speedKmh-38)*0.025;
+    if(speedKmh < 12) base *= 0.92;
+    return base;
+  }
+
+  function calcWhKm(speedKmh, slopePct){
+    const totalMass = settings.riderKg + settings.scooterKg;
+    let whkm = calibratedFlatWhKm(Math.max(5, speedKmh));
+    // Extra energy climbing: m*g*rise, converted to Wh per km, adjusted for drivetrain.
+    // 1% grade => 10m rise per km.
+    if(slopePct > 0){
+      const climbWhPerKm = totalMass * 9.81 * (10*slopePct) / 3600 / 0.78;
+      whkm += climbWhPerKm;
+    } else if(slopePct < 0){
+      // Coasting downhill reduces consumption but not below a sensible floor.
+      whkm *= Math.max(0.45, 1 + slopePct * 0.055);
+    }
+    return Math.max(5, Math.min(75, whkm));
+  }
+
+  function onPosition(pos){
+    if(!running || paused) return;
+    const c = pos.coords;
+    const now = pos.timestamp || Date.now();
+
+    let speedKmh = c.speed != null && c.speed >= 0 ? c.speed * 3.6 : 0;
+    let segmentM = 0;
+    let dt = lastTs ? (now-lastTs)/1000 : 0;
+
+    if(lastPos && dt > 0){
+      segmentM = haversine(lastPos, c);
+      // Reject obvious GPS jumps.
+      if(segmentM > 120 || c.accuracy > 80) segmentM = 0;
+      if((c.speed == null || c.speed < 0) && segmentM > 0) speedKmh = (segmentM/dt)*3.6;
+    }
+
+    if(speedKmh < 1.2) speedKmh = 0;
+    recentSpeeds.push(speedKmh);
+    if(recentSpeeds.length > 5) recentSpeeds.shift();
+    const displaySpeed = recentSpeeds.reduce((a,b)=>a+b,0)/recentSpeeds.length;
+
+    let slopeNow = smoothSlope;
+    if(lastPos && segmentM >= 8 && c.altitude != null && lastPos.altitude != null){
+      const dz = c.altitude - lastPos.altitude;
+      const rawSlope = Math.max(-20, Math.min(20, (dz/segmentM)*100));
+      smoothSlope = smoothSlope*0.82 + rawSlope*0.18;
+      slopeNow = smoothSlope;
+    }
+
+    if(segmentM > 0 && displaySpeed >= 2){
+      distanceM += segmentM;
+      if(dt > 0 && dt < 20) movingSeconds += dt;
+      const whkm = calcWhKm(displaySpeed, slopeNow);
+      usedWh += whkm * (segmentM/1000);
+      recentWhKm.push(whkm);
+      if(recentWhKm.length > 40) recentWhKm.shift();
+    }
+
+    lastPos = {
+      latitude:c.latitude, longitude:c.longitude,
+      altitude:c.altitude, accuracy:c.accuracy
+    };
+    lastTs = now;
+
+    $('speed').textContent = Math.round(displaySpeed);
+    $('slope').textContent = slopeNow.toFixed(1);
+    $('gpsStatus').innerHTML = `<span class="ok">GPS работает</span> · точность ±${Math.round(c.accuracy || 0)} м`;
+    render();
+  }
+
+  function onError(err){
+    const msgs = {
+      1:'Нет разрешения на геолокацию. Разреши доступ к местоположению.',
+      2:'Не удалось получить GPS-позицию.',
+      3:'GPS отвечает слишком долго.'
+    };
+    $('gpsStatus').innerHTML = `<span class="bad">${msgs[err.code] || err.message}</span>`;
+  }
+
+  function render(){
+    $('distance').textContent = (distanceM/1000).toFixed(2);
+    const avg = movingSeconds>0 ? (distanceM/1000)/(movingSeconds/3600) : 0;
+    $('avgSpeed').textContent = avg.toFixed(1);
+
+    const avgWhKm = recentWhKm.length
+      ? recentWhKm.reduce((a,b)=>a+b,0)/recentWhKm.length
+      : calibratedFlatWhKm(30);
+
+    $('whkm').textContent = avgWhKm.toFixed(1);
+    $('usedWh').textContent = usedWh.toFixed(0);
+
+    const remainingWh = Math.max(0, startEnergyWh-usedWh);
+    const fullWh = settings.nomV*settings.ah;
+    const pct = fullWh>0 ? remainingWh/fullWh*100 : 0;
+    $('batteryPct').textContent = Math.round(pct);
+    $('batteryBar').style.width = Math.max(0,Math.min(100,pct))+'%';
+    $('batteryBar').style.background =
+      pct < 20 ? 'var(--danger)' : pct < 40 ? 'var(--warn)' : 'var(--accent)';
+
+    const range = avgWhKm>0 ? remainingWh/avgWhKm : 0;
+    $('range').textContent = range.toFixed(1);
+  }
+
+  function start(){
+    if(!navigator.geolocation){
+      $('gpsStatus').innerHTML = '<span class="bad">В этом браузере нет Geolocation API.</span>';
+      return;
+    }
+    readSettings();
+    if(!startEnergyWh) recalcStartEnergy();
+    running = true; paused = false;
+    $('startBtn').textContent = '● Поездка идёт';
+    $('gpsStatus').textContent = 'Ищу GPS…';
+    if(watchId != null) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(onPosition,onError,{
+      enableHighAccuracy:true, maximumAge:1000, timeout:12000
+    });
+  }
+
+  function pause(){
+    paused = !paused;
+    $('pauseBtn').textContent = paused ? '▶ Продолжить' : '⏸ Пауза';
+    if(paused) $('speed').textContent = '0';
+  }
+
+  function resetTrip(){
+    distanceM=0; movingSeconds=0; usedWh=0; lastPos=null; lastTs=null;
+    smoothSlope=0; recentWhKm=[]; recentSpeeds=[];
+    recalcStartEnergy();
+    $('speed').textContent='0'; $('slope').textContent='0.0';
+    $('gpsStatus').textContent = running ? 'Поездка сброшена, GPS продолжает работать' : 'GPS ещё не запущен';
+    render();
+  }
+
+  $('startBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', pause);
+  $('resetBtn').addEventListener('click', resetTrip);
+  $('saveBtn').addEventListener('click', () => {
+    recalcStartEnergy();
+    resetTrip();
+    $('gpsStatus').innerHTML = '<span class="ok">Параметры сохранены.</span> Теперь нажми «Старт поездки».';
+  });
+
+  loadSettings();
+  recalcStartEnergy();
+  render();
+})();
+</script>
+</body>
+</html>
